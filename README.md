@@ -97,10 +97,12 @@ The `imuSensor` object simulates a 9-DOF IMU with **no sensor bias** (focusing o
 
 **Input Files** (`*_inputs.csv` - 9 columns per row)  
 Raw noisy sensor measurements:
+
 $$\begin{bmatrix} a_x & a_y & a_z & \omega_x & \omega_y & \omega_z & m_x & m_y & m_z \end{bmatrix}$$
 
 **Target Files** (`*_targets.csv` - 10 columns per row)  
 Ground truth states for training:
+
 $$\begin{bmatrix} p_x & p_y & p_z & v_x & v_y & v_z & q_w & q_x & q_y & q_z \end{bmatrix}$$
 
 
