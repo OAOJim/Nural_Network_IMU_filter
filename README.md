@@ -31,6 +31,7 @@ The prior state estimate ($\hat{x}_{t|t-1}$) is calculated using rigid body kine
 #### A. Orientation Update
 The gyroscope measures angular velocity $\omega_t$. We treat this as the control input to update the quaternion $q$.
 $$\Delta q_t = \left[ 1, \frac{1}{2} \omega_x \Delta t, \frac{1}{2} \omega_y \Delta t, \frac{1}{2} \omega_z \Delta t \right]^T$$
+
 $$q_{t+1} = q_t \otimes \Delta q_t$$
 *(Normalized to maintain unit length)*
 
@@ -39,10 +40,12 @@ The accelerometer measures forces in the **Body Frame**. To integrate position, 
 
 **Rotation:**
 $$a_{world} = R(q_t) \cdot a_{meas} - g$$
+
 Where $R(q_t)$ is the rotation matrix derived from the current quaternion.
 
 **Integration:**
 $$v_{t+1} = v_t + a_{world} \Delta t$$
+
 $$p_{t+1} = p_t + v_t \Delta t + \frac{1}{2} a_{world} \Delta t^2$$
 
 ### 2. Observation
@@ -114,6 +117,7 @@ The training process implements a Curriculum Learning strategy to decouple orien
 ### Motivation: Why Decouple Orientation?
 
 During training, small errors in orientation ($q$) can amplify position errors ($p, v$) through gravity projection:
+
 $$a_{world} = R(q_t) \cdot a_{meas} - g$$
 
 If $q_t$ is slightly wrong, $R(q_t)$ rotates the acceleration incorrectly, propagating errors through integration. This makes simultaneous learning of orientation and position unstable.
@@ -122,8 +126,11 @@ If $q_t$ is slightly wrong, $R(q_t)$ rotates the acceleration incorrectly, propa
 **Training Mode (with Ground Truth Quaternion):**
 
 1. **State Prediction:** Position and Velocity are integrated using the Ground Truth Quaternion ($q_{gt}$) from the dataset:
+
    $$a_{world} = R(q_{gt}) \cdot a_{meas} - g$$
+
    $$v_{t+1} = v_t + a_{world} \Delta t$$
+
    $$p_{t+1} = p_t + v_t \Delta t + \frac{1}{2} a_{world} \Delta t^2$$
 
 2. **Neural Network Learning:** The GRU-based network observes the innovation (measurement residual) and learns to predict the optimal Kalman Gain to correct position and velocity errors.
