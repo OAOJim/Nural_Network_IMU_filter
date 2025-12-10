@@ -13,7 +13,8 @@ For the Neural-network IMU filter, there are generally two methodologies:
 1.  **Black Box (End-to-End):** We learn the physics entirely from data. The neural network takes raw IMU data and outputs state estimates directly. This is opaque and often violates physical constraints.
 2.  **Gray Box (Hybrid/KalmanNet):** We calculate the physics using known transfer functions (Newton's laws, Kinematics) and use a Neural Network to estimate the unknown or non-linear parameters—specifically the **Kalman Gain ($K$)**.
 
-This project implements the **Gray Box** approach. The system dynamics are hard-coded based on physics. With the Neural Network (GRU-based) dynamically computes the optimal Kalman Gain to correct errors based on the measurement residuals. Also, since the noise between Gyroscope is tiny compare to the accerometer. Applying filter to the orientation will get no benefit. I decided to let the model only be position and velocity filter.
+
+This project implements the **Gray Box** approach, effectively creating a **differentiable physics** model. The State Transition Model is explicitly hard-coded based on Newtonian mechanics and Quaternion kinematics to ensure physical consistency. A Gated Recurrent Unit (GRU) is trained to dynamically regress the optimal Kalman Gain ($K$) based on innovation errors. Also, since the noise between Gyroscope is tiny compare to the accerometer. Applying filter to the orientation will get no benefit. I decided to let the model only be position and velocity filter.
 
 ### State Space
 The system tracks a 10-dimensional state vector $x_t$:
@@ -26,10 +27,13 @@ $$y_t = [a_x, a_y, a_z, \omega_x, \omega_y, \omega_z, m_x, m_y, m_z]^T$$
 
 ## Model Architecture
 ### 1. State Transition Model
-The prior state estimate ($\hat{x}_{t|t-1}$) is calculated using rigid body kinematics.
+The prior state estimate ($\hat{x}_{t|t-1}$) is calculated using rigid body kinematics implemented as custom differentiable layers in PyTorch.
 
 #### A. Orientation Update
 The gyroscope measures angular velocity $\omega_t$. We treat this as the control input to update the quaternion $q$.
+
+
+The integration is performed using the **Hamilton Product** to update the orientation state:
 $$\Delta q_t = \left[ 1, \frac{1}{2} \omega_x \Delta t, \frac{1}{2} \omega_y \Delta t, \frac{1}{2} \omega_z \Delta t \right]^T$$
 
 $$q_{t+1} = q_t \otimes \Delta q_t$$
@@ -38,10 +42,10 @@ $$q_{t+1} = q_t \otimes \Delta q_t$$
 #### B. Linear Motion Update (Newtonian Mechanics)
 The accelerometer measures forces in the **Body Frame**. To integrate position, we must rotate acceleration to the World Frame and subtract gravity ($g = [0, 0, 9.81]$).
 
-**Rotation:**
-$$a_{world} = R(q_t) \cdot a_{meas} - g$$
+**Rotation & Gradient Flow:**
+We derive the rotation matrix $R(q_t)$ directly from the quaternion state within the computation graph. This allows gradients to flow through the rotation operation during backpropagation, enabling the network to learn how orientation errors affect position estimates.
 
-Where $R(q_t)$ is the rotation matrix derived from the current quaternion.
+$$a_{world} = R(q_t) \cdot a_{meas} - g$$
 
 **Integration:**
 $$v_{t+1} = v_t + a_{world} \Delta t$$
@@ -64,7 +68,7 @@ $$\hat{x}_{t} = \hat{x}_{t|t-1} + K_t \cdot \text{Innovation}$$
 
 ## Data Generation
 
-Synthetic training data is generated using MATLAB's Navigation Toolbox to obtain perfect Ground Truth (Position, Velocity, Orientation) paired with realistic noisy sensor measurements. avoiding real-world data collection while maintaining physical consistency.
+Synthetic training data is generated using MATLAB's Navigation Toolbox and Robotics System Toolbox. This allows for rigorous validation of the model against specific **white noise profiles** and ground truth states before testing on real-world constraints, ensuring the model learns the underlying dynamics rather than dataset artifacts.
 
 ### Trajectory & Kinematics
 Each trajectory is generated with random but smooth motion:
@@ -112,7 +116,8 @@ $$\begin{bmatrix} p_x & p_y & p_z & v_x & v_y & v_z & q_w & q_x & q_y & q_z \end
 
 ## Training Strategy
 
-The training process implements a Curriculum Learning strategy to decouple orientation learning from position/velocity learning, enable stable convergence.
+
+The training process implements a Curriculum Learning strategy to decouple orientation learning from position/velocity learning. This is critical to prevent **exploding gradients**, a common pitfall in learning-based navigation where orientation errors amplify rapidly through double integration.
 
 ### Motivation: Why Decouple Orientation?
 
@@ -121,6 +126,7 @@ During training, small errors in orientation ($q$) can amplify position errors (
 $$a_{world} = R(q_t) \cdot a_{meas} - g$$
 
 If $q_t$ is slightly wrong, $R(q_t)$ rotates the acceleration incorrectly, propagating errors through integration. This makes simultaneous learning of orientation and position unstable.
+
 ### Decoupled Training Approach
 
 **Training Mode (with Ground Truth Quaternion):**
@@ -256,4 +262,3 @@ The efficiency test visualization
 3. **Model Efficiency:** Pruned model show better performance,the total cost is lower but still almost 10x more than EKF, not really worth to use it on Embeeded flatform.
 4. **Useless Blackbox model** The balck box model shows it's basically circling at the origin point. That will be a problem for the loss calculation during training. Prove how important using the gray box trategy 
 5. **Long term error** There is a long term error. We will need more engineering for real world application (Like "reset" the Orientation data when the accerometer is close to gravity, or using GPS to conbine more benefits)
-
