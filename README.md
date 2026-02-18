@@ -3,6 +3,7 @@
 # Neural Network IMU Filters (KalmanNet)
 **YiChun (Jim) Liao**
 
+This is a class project for ECEN-5002 special topics embedded AI. 2025 Fall
 </div>
 
 <div align="center">
@@ -262,3 +263,9 @@ The efficiency test visualization
 3. **Model Efficiency:** Pruned model show better performance,the total cost is lower but still almost 10x more than EKF, not really worth to use it on Embeeded flatform.
 4. **Useless Blackbox model** The balck box model shows it's basically circling at the origin point. That will be a problem for the loss calculation during training. Prove how important using the gray box trategy 
 5. **Long term error** There is a long term error. We will need more engineering for real world application (Like "reset" the Orientation data when the accerometer is close to gravity, or using GPS to conbine more benefits)
+
+
+
+## Cite
+
+[1] Revach, Guy, et al. "KalmanNet: Neural network aided Kalman filtering for partially known dynamics." IEEE Transactions on Signal Processing 70 (2022): 1532-1547.
